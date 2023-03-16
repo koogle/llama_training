@@ -7,6 +7,7 @@ import torch
 
 from llama.tokenizer import Tokenizer
 from llama.model import Transformer
+from torch.nn import functional as F
 
 
 class LLaMA:
@@ -17,6 +18,7 @@ class LLaMA:
     def generate(
         self,
         prompts: List[str],
+        expected: List[str],
         max_gen_len: int,
         temperature: float = 0.8,
         top_p: float = 0.95,
@@ -24,8 +26,10 @@ class LLaMA:
         bsz = len(prompts)
         params = self.model.params
         assert bsz <= params.max_batch_size, (bsz, params.max_batch_size)
+        assert len(prompts) == len(expected)
 
         prompt_tokens = [self.tokenizer.encode(x, bos=True, eos=False) for x in prompts]
+        expected_tokens = [self.tokenizer.encode(x, bos=True, eos=False) for x in expected]
 
         min_prompt_size = min([len(t) for t in prompt_tokens])
         max_prompt_size = max([len(t) for t in prompt_tokens])
@@ -33,13 +37,26 @@ class LLaMA:
         total_len = min(params.max_seq_len, max_gen_len + max_prompt_size)
 
         tokens = torch.full((bsz, total_len), self.tokenizer.pad_id).cuda().long()
+        target_tokens = torch.full((bsz, total_len), self.tokenizer.pad_id).cuda().long()
+
         for k, t in enumerate(prompt_tokens):
             tokens[k, : len(t)] = torch.tensor(t).long()
+        for k, t in enumerate(expected_tokens):
+            target_tokens[k, : len(t)] = torch.tensor(t).long()
+
+        
         input_text_mask = tokens != self.tokenizer.pad_id
-        start_pos = min_prompt_size
+        start_pos = 1 # min_prompt_size
         prev_pos = 0
         for cur_pos in range(start_pos, total_len):
             logits = self.model.forward(tokens[:, prev_pos:cur_pos], prev_pos)
+            expected_tokens = target_tokens[:, prev_pos:cur_pos]
+            print(cur_pos)
+            print("Logits shape", logits.shape)
+            print("Expected shape", expected_tokens.shape, expected_tokens)
+            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), expected_tokens.view(-1), ignore_index=-1)
+            loss.backward()
+            exit()
             if temperature > 0:
                 probs = torch.softmax(logits / temperature, dim=-1)
                 next_token = sample_top_p(probs, top_p)

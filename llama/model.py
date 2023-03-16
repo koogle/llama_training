@@ -28,6 +28,7 @@ class ModelArgs:
 
     max_batch_size: int = 32
     max_seq_len: int = 2048
+    # requires_grad: bool = True
 
 
 class RMSNorm(torch.nn.Module):
@@ -86,6 +87,7 @@ class Attention(nn.Module):
             bias=False,
             gather_output=False,
             init_method=lambda x: x,
+            
         )
         self.wk = ColumnParallelLinear(
             args.dim,
@@ -203,7 +205,7 @@ class Transformer(nn.Module):
         self.n_layers = params.n_layers
 
         self.tok_embeddings = ParallelEmbedding(
-            params.vocab_size, params.dim, init_method=lambda x: x
+            params.vocab_size, params.dim, init_method=lambda x: x,
         )
 
         self.layers = torch.nn.ModuleList()
@@ -219,7 +221,7 @@ class Transformer(nn.Module):
             self.params.dim // self.params.n_heads, self.params.max_seq_len * 2
         )
 
-    @torch.inference_mode()
+    # @torch.inference_mode()
     def forward(self, tokens: torch.Tensor, start_pos: int):
         _bsz, seqlen = tokens.shape
         h = self.tok_embeddings(tokens)
