@@ -45,26 +45,41 @@ class LLaMA:
             target_tokens[k, : len(t)] = torch.tensor(t).long()
 
         
+        optimizer = torch.optim.AdamW(
+            self.model.parameters(),
+            lr=5e-04
+        )
         input_text_mask = tokens != self.tokenizer.pad_id
-        start_pos = 1 # min_prompt_size
+        start_pos = min_prompt_size
         prev_pos = 0
+        expected_pos = 0
+
         for cur_pos in range(start_pos, total_len):
             logits = self.model.forward(tokens[:, prev_pos:cur_pos], prev_pos)
-            expected_tokens = target_tokens[:, prev_pos:cur_pos]
-            print(cur_pos)
-            print("Logits shape", logits.shape)
-            print("Expected shape", expected_tokens.shape, expected_tokens)
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), expected_tokens.view(-1), ignore_index=-1)
-            print(loss)
-            loss.backward()
+            expected_tokens = target_tokens[:, expected_pos:expected_pos + 1]
+            
+            if expected_tokens.view(-1).item() != -1:
+                print(prev_pos, cur_pos, expected_tokens, expected_tokens.view(-1).item())
 
-            print("trained")
-            logits = self.model.forward(tokens[:, prev_pos:cur_pos], prev_pos)
-            expected_tokens = target_tokens[:, prev_pos:cur_pos]
+            #print(cur_pos)
+            #print("Logits shape", logits.shape)
+            #print("Expected shape", expected_tokens.shape, expected_tokens)
+            # optimizer.zero_grad()
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), expected_tokens.view(-1), ignore_index=-1)
-            print(loss)
+            #loss.backward()
+            #print(loss)
+            #loss.backward()
+            optimizer.step()
+            # loss = None
+            optimizer.zero_grad()
+            
+            #logits = self.model.forward(tokens[:, prev_pos:cur_pos], prev_pos)
+            #expected_tokens = target_tokens[:, prev_pos:cur_pos]
+            #loss = F.cross_entropy(logits.view(-1, logits.size(-1)), expected_tokens.view(-1), ignore_index=-1)
+            #loss.backward()
+            #print(loss)
              
-            exit()
+            #exit()
             if temperature > 0:
                 probs = torch.softmax(logits / temperature, dim=-1)
                 next_token = sample_top_p(probs, top_p)
@@ -75,9 +90,11 @@ class LLaMA:
             next_token = torch.where(
                 input_text_mask[:, cur_pos], tokens[:, cur_pos], next_token
             )
+            
             tokens[:, cur_pos] = next_token
             prev_pos = cur_pos
-
+            expected_pos += 1
+        
         decoded = []
         for i, t in enumerate(tokens.tolist()):
             # cut to max gen len

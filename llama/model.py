@@ -240,6 +240,6 @@ class Transformer(nn.Module):
         return output.float()
 
     def freeze_params(self):
-        for layer in self.layers[:round(self.n_layers * 0.5)]:
+        for layer in self.layers[:round(self.n_layers * 0.7)]:
             for param in layer.parameters():
                 param.requires_grad = False
