@@ -55,7 +55,15 @@ class LLaMA:
             print("Logits shape", logits.shape)
             print("Expected shape", expected_tokens.shape, expected_tokens)
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), expected_tokens.view(-1), ignore_index=-1)
+            print(loss)
             loss.backward()
+
+            print("trained")
+            logits = self.model.forward(tokens[:, prev_pos:cur_pos], prev_pos)
+            expected_tokens = target_tokens[:, prev_pos:cur_pos]
+            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), expected_tokens.view(-1), ignore_index=-1)
+            print(loss)
+             
             exit()
             if temperature > 0:
                 probs = torch.softmax(logits / temperature, dim=-1)

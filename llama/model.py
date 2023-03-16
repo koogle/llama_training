@@ -238,3 +238,8 @@ class Transformer(nn.Module):
         h = self.norm(h)
         output = self.output(h[:, -1, :])  # only compute last logits
         return output.float()
+
+    def freeze_params(self):
+        for layer in self.layers[:round(self.n_layers * 0.8)]:
+            for param in layer.parameters():
+                param.requires_grad = False
